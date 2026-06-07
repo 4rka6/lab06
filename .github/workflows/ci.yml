@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    - name: Install dependencies
+      run: sudo apt update && sudo apt install -y cmake build-essential rpm
+    - name: Build and package
+      run: |
+        rm -rf _build
+        cmake -H. -B_build -DBUILD_TESTS=ON
+        cmake --build _build
+        cd _build
+        ctest --output-on-failure
+        cpack -G DEB
+        cpack -G RPM
+    - name: Upload DEB package
+      uses: actions/upload-artifact@v4
+      with:
+        name: deb-package
+        path: _build/*.deb
+    - name: Upload RPM package
+      uses: actions/upload-artifact@v4
+      with:
+        name: rpm-package
+        path: _build/*.rpm

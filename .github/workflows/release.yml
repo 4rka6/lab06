@@ -1,0 +1,81 @@
+name: lr06
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install rpmbuild
+        run: sudo apt-get update && sudo apt-get install -y rpm
+      - name: Build DEB and RPM
+        run: |
+          mkdir build && cd build
+          cmake ..
+          make
+          cpack -G DEB
+          cpack -G RPM
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-packages
+          path: build/*.deb build/*.rpm
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build EXE
+        run: |
+          mkdir build
+          cd build
+          cmake ..
+          cmake --build . --config Release
+      - name: Create ZIP
+        run: |
+          cd build/Release
+          mkdir solver
+          copy solver.exe solver
+          7z a solver-windows-x64.zip ./solver
+          move solver-windows-x64.zip ..
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-packages
+          path: build/*.zip
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build DMG
+        run: |
+          mkdir build && cd build
+          cmake ..
+          make
+          cpack -G DragNDrop
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-packages
+          path: build/*.dmg
+
+  release:
+    needs: [build-linux, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            linux-packages/*.deb
+            linux-packages/*.rpm
+            windows-packages/*.zip
+            macos-packages/*.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
